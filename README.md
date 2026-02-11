@@ -48,9 +48,6 @@ e aplica autenticação e controlo de acessos por utilizador/perfil.
 - `/server` - API REST
 - `/docs` - Documentação (screenshots, diagramas, etc.)
 
-## Créditos / Terceiros
-Ver `docs/TERCEIROS.md`.
-
 ## Bibliotecas e código de terceiros
 As bibliotecas/frameworks e qualquer código de terceiros utilizado serão identificados no ecrã
 "Informações" (a partir do ecrã inicial) e, quando aplicável, também como comentários junto do código.

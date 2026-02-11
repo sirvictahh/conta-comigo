@@ -1,3 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Nome da aplicação (usado no launcher e em alguns ecrãs do sistema) -->
     <string name="app_name">Conta Comigo</string>
+
+    <!-- Ecrã inicial -->
+    <string name="home_title">Conta Comigo</string>
+    <string name="home_subtitle">Gestão partilhada de despesas</string>
+    <string name="home_btn_expenses">Despesas</string>
+    <string name="home_btn_map">Mapa</string>
+    <string name="home_btn_info">Informações</string>
+
+    <!-- Ações genéricas -->
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Cancelar</string>
 </resources>
