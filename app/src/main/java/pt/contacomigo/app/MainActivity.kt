@@ -1,8 +1,8 @@
 package pt.contacomigo.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -16,7 +16,6 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        // Mantém o comportamento "edge-to-edge" (padding automático por causa da status bar/navigation bar)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -27,19 +26,16 @@ class MainActivity : AppCompatActivity() {
         val btnMap = findViewById<Button>(R.id.btnMap)
         val btnInfo = findViewById<Button>(R.id.btnInfo)
 
-        // Exemplo completo (faz o botão responder já)
         btnExpenses.setOnClickListener {
-            showNotImplemented("Ecrã de Despesas")
+            startActivity(Intent(this, ExpensesActivity::class.java))
         }
 
-        // TODO: Faz o botão "Mapa" chamar showNotImplemented("Ecrã do Mapa")
-        // btnMap.setOnClickListener { ... }
+        btnMap.setOnClickListener {
+            startActivity(Intent(this, MapActivity::class.java))
+        }
 
-        // TODO: Faz o botão "Informações" chamar showNotImplemented("Ecrã de Informações")
-        // btnInfo.setOnClickListener { ... }
-    }
-
-    private fun showNotImplemented(featureName: String) {
-        Toast.makeText(this, "$featureName (a implementar)", Toast.LENGTH_SHORT).show()
+        btnInfo.setOnClickListener {
+            startActivity(Intent(this, InfoActivity::class.java))
+        }
     }
 }

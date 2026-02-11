@@ -13,4 +13,30 @@
     <!-- Ações genéricas -->
     <string name="action_ok">OK</string>
     <string name="action_cancel">Cancelar</string>
+
+    <!-- Títulos de ecrãs -->
+    <string name="title_expenses">Despesas</string>
+    <string name="title_map">Mapa</string>
+    <string name="title_info">Informações</string>
+
+    <!-- Ecrã "Informações" (conteúdo obrigatório) -->
+    <string name="info_course_label">Curso:</string>
+    <string name="info_course_value">[INSERE O NOME DO CURSO]</string>
+
+    <string name="info_uc_label">Unidade Curricular:</string>
+    <string name="info_uc_value">Desenvolvimento de Aplicações Móveis (DAM)</string>
+
+    <string name="info_year_label">Ano letivo:</string>
+    <string name="info_year_value">2025/2026</string>
+
+    <string name="info_author_label">Autor:</string>
+    <string name="info_author_value">[INSERE O TEU NOME]</string>
+
+    <string name="info_libraries_label">Bibliotecas / Frameworks:</string>
+    <string name="info_libraries_value">AndroidX (AppCompat, Core KTX)\nConstraintLayout</string>
+
+    <string name="info_sources_label">Fontes / Terceiros:</string>
+    <string name="info_sources_value">A preencher (links e origens serão listados aqui e/ou no código)</string>
+
+    <string name="info_photo_hint">Nota: substituir o ícone por uma foto do autor antes da entrega.</string>
 </resources>
