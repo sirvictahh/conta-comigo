@@ -42,4 +42,16 @@
     <string name="info_sources_value">A preencher (links e origens serão listados aqui e/ou no código)</string>
 
     <string name="info_photo_hint">Nota: substituir o ícone por uma foto do autor antes da entrega.</string>
+
+    <!-- Mapa -->
+    <string name="map_btn_my_location">A minha localização</string>
+    <string name="map_error_location_permission">Permissão de localização negada.</string>
+    <string name="map_error_location_unavailable">Não foi possível obter a localização.</string>
+
+    <!-- GeoOcorrências (marcadores no mapa) -->
+    <string name="map_add_occurrence_title">Nova ocorrência</string>
+    <string name="map_add_occurrence_hint">Título (ex.: Buraco na estrada)</string>
+    <string name="map_add_occurrence_add">Adicionar</string>
+    <string name="map_add_occurrence_cancel">Cancelar</string>
+    <string name="map_occurrence_added">Ocorrência adicionada ao mapa.</string>
 </resources>
