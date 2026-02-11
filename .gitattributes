@@ -1,0 +1,18 @@
+# Normalizar finais de linha para evitar problemas entre Windows e macOS
+* text=auto
+
+# Código e configs: LF
+*.kt   text eol=lf
+*.kts  text eol=lf
+*.xml  text eol=lf
+*.gradle text eol=lf
+*.properties text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sh   text eol=lf
+gradlew text eol=lf
+
+# Scripts Windows: CRLF
+*.bat  text eol=crlf
+gradlew.bat text eol=crlf
