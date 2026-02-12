@@ -1,18 +1,23 @@
-# Builds / caches (não devem ir para o Git)
+# Gradle / builds
 .gradle/
 **/build/
+.cxx/
+.externalNativeBuild/
 .kotlin/
 
 # Artefactos gerados
 *.apk
 *.aab
 
-# Configuração local da máquina (paths do SDK, etc.)
-local.properties
-
 # Android Studio / IntelliJ
 .idea/
 *.iml
 
+# Configuração local (paths do SDK, etc.)
+local.properties
+
 # macOS
 .DS_Store
+
+# Windows
+Thumbs.db

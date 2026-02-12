@@ -54,4 +54,9 @@
     <string name="map_add_occurrence_add">Adicionar</string>
     <string name="map_add_occurrence_cancel">Cancelar</string>
     <string name="map_occurrence_added">Ocorrência adicionada ao mapa.</string>
+
+    <string name="map_occurrence_remove_title">Remover ocorrência</string>
+    <string name="map_occurrence_remove_message">Tem a certeza que pretende remover esta ocorrência?</string>
+    <string name="map_occurrence_remove_confirm">Remover</string>
+    <string name="map_occurrence_removed">Ocorrência removida.</string>
 </resources>

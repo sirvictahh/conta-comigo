@@ -71,9 +71,7 @@ class MapActivity : AppCompatActivity() {
 
     private fun enableLongPressToAddOccurrence() {
         val receiver = object : MapEventsReceiver {
-            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                return false
-            }
+            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean = false
 
             override fun longPressHelper(p: GeoPoint): Boolean {
                 showAddOccurrenceDialog(p)
@@ -119,8 +117,12 @@ class MapActivity : AppCompatActivity() {
             position = GeoPoint(occ.latitude, occ.longitude)
             title = occ.title
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            // Guarda o ID (útil no futuro para editar/apagar)
             relatedObject = occ.id
+
+            setOnMarkerClickListener { m, _ ->
+                showRemoveOccurrenceDialog(m)
+                true
+            }
         }
 
         mapView.overlays.add(marker)
@@ -129,6 +131,26 @@ class MapActivity : AppCompatActivity() {
         if (showToast) {
             Toast.makeText(this, getString(R.string.map_occurrence_added), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showRemoveOccurrenceDialog(marker: Marker) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.map_occurrence_remove_title))
+            .setMessage(getString(R.string.map_occurrence_remove_message))
+            .setPositiveButton(getString(R.string.map_occurrence_remove_confirm)) { _, _ ->
+                val occId = marker.relatedObject as? String
+                if (occId != null) {
+                    occurrences.removeAll { it.id == occId }
+                    repository.saveAll(occurrences)
+                }
+
+                mapView.overlays.remove(marker)
+                mapView.invalidate()
+
+                Toast.makeText(this, getString(R.string.map_occurrence_removed), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(getString(R.string.action_cancel), null)
+            .show()
     }
 
     private fun centerOnMyLocation() {
