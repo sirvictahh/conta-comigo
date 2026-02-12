@@ -19,11 +19,17 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
+import pt.contacomigo.app.data.Occurrence
+import pt.contacomigo.app.data.OccurrenceRepository
+import java.util.UUID
 
 class MapActivity : AppCompatActivity() {
 
     private lateinit var mapView: MapView
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+
+    private lateinit var repository: OccurrenceRepository
+    private lateinit var occurrences: MutableList<Occurrence>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +40,9 @@ class MapActivity : AppCompatActivity() {
         mapView = findViewById(R.id.mapView)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
+        repository = OccurrenceRepository(applicationContext)
+        occurrences = repository.loadAll()
+
         mapView.setTileSource(TileSourceFactory.MAPNIK)
         mapView.setMultiTouchControls(true)
 
@@ -41,6 +50,9 @@ class MapActivity : AppCompatActivity() {
         val startPoint = GeoPoint(38.7223, -9.1393)
         mapView.controller.setZoom(15.0)
         mapView.controller.setCenter(startPoint)
+
+        // Carregar marcadores guardados localmente
+        loadSavedOccurrencesOnMap()
 
         // Botão: centrar na minha localização
         findViewById<Button>(R.id.btnMyLocation).setOnClickListener {
@@ -51,10 +63,15 @@ class MapActivity : AppCompatActivity() {
         enableLongPressToAddOccurrence()
     }
 
+    private fun loadSavedOccurrencesOnMap() {
+        occurrences.forEach { occ ->
+            addOccurrenceMarker(occ, showToast = false)
+        }
+    }
+
     private fun enableLongPressToAddOccurrence() {
         val receiver = object : MapEventsReceiver {
             override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                // Não usamos toque simples por agora
                 return false
             }
 
@@ -64,7 +81,6 @@ class MapActivity : AppCompatActivity() {
             }
         }
 
-        // Overlay que escuta eventos do mapa (tap/long press)
         mapView.overlays.add(MapEventsOverlay(receiver))
     }
 
@@ -78,24 +94,41 @@ class MapActivity : AppCompatActivity() {
             .setView(input)
             .setPositiveButton(R.string.map_add_occurrence_add) { _, _ ->
                 val title = input.text.toString().trim()
-                val finalTitle = if (title.isBlank()) getString(R.string.map_add_occurrence_title) else title
-                addOccurrenceMarker(point, finalTitle)
+                val finalTitle =
+                    if (title.isBlank()) getString(R.string.map_add_occurrence_title) else title
+
+                val occ = Occurrence(
+                    id = UUID.randomUUID().toString(),
+                    title = finalTitle,
+                    latitude = point.latitude,
+                    longitude = point.longitude,
+                    createdAtEpochMillis = System.currentTimeMillis()
+                )
+
+                occurrences.add(occ)
+                repository.saveAll(occurrences)
+
+                addOccurrenceMarker(occ, showToast = true)
             }
             .setNegativeButton(R.string.map_add_occurrence_cancel, null)
             .show()
     }
 
-    private fun addOccurrenceMarker(point: GeoPoint, title: String) {
+    private fun addOccurrenceMarker(occ: Occurrence, showToast: Boolean) {
         val marker = Marker(mapView).apply {
-            position = point
-            this.title = title
+            position = GeoPoint(occ.latitude, occ.longitude)
+            title = occ.title
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            // Guarda o ID (útil no futuro para editar/apagar)
+            relatedObject = occ.id
         }
 
         mapView.overlays.add(marker)
         mapView.invalidate()
 
-        Toast.makeText(this, getString(R.string.map_occurrence_added), Toast.LENGTH_SHORT).show()
+        if (showToast) {
+            Toast.makeText(this, getString(R.string.map_occurrence_added), Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun centerOnMyLocation() {
