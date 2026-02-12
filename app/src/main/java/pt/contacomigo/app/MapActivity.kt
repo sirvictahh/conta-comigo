@@ -31,6 +31,9 @@ class MapActivity : AppCompatActivity() {
     private lateinit var repository: OccurrenceRepository
     private lateinit var occurrences: MutableList<Occurrence>
 
+    // Mantém referência dos markers (para limpar tudo rapidamente)
+    private val occurrenceMarkers = mutableMapOf<String, Marker>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -57,6 +60,11 @@ class MapActivity : AppCompatActivity() {
         // Botão: centrar na minha localização
         findViewById<Button>(R.id.btnMyLocation).setOnClickListener {
             centerOnMyLocation()
+        }
+
+        // Botão: limpar todas as ocorrências (para testes / reset)
+        findViewById<Button>(R.id.btnClearOccurrences).setOnClickListener {
+            showClearAllOccurrencesDialog()
         }
 
         // Toque prolongado no mapa: criar uma ocorrência (marcador)
@@ -93,7 +101,7 @@ class MapActivity : AppCompatActivity() {
             .setPositiveButton(R.string.map_add_occurrence_add) { _, _ ->
                 val title = input.text.toString().trim()
                 val finalTitle =
-                    if (title.isBlank()) getString(R.string.map_add_occurrence_title) else title
+                    if (title.isBlank()) getString(R.string.map_default_occurrence_title) else title
 
                 val occ = Occurrence(
                     id = UUID.randomUUID().toString(),
@@ -125,6 +133,8 @@ class MapActivity : AppCompatActivity() {
             }
         }
 
+        occurrenceMarkers[occ.id] = marker
+
         mapView.overlays.add(marker)
         mapView.invalidate()
 
@@ -142,6 +152,7 @@ class MapActivity : AppCompatActivity() {
                 if (occId != null) {
                     occurrences.removeAll { it.id == occId }
                     repository.saveAll(occurrences)
+                    occurrenceMarkers.remove(occId)
                 }
 
                 mapView.overlays.remove(marker)
@@ -151,6 +162,38 @@ class MapActivity : AppCompatActivity() {
             }
             .setNegativeButton(getString(R.string.action_cancel), null)
             .show()
+    }
+
+    private fun showClearAllOccurrencesDialog() {
+        if (occurrences.isEmpty()) {
+            Toast.makeText(this, getString(R.string.map_no_occurrences_to_clear), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.map_clear_title))
+            .setMessage(getString(R.string.map_clear_message))
+            .setPositiveButton(getString(R.string.map_clear_confirm)) { _, _ ->
+                clearAllOccurrences()
+            }
+            .setNegativeButton(getString(R.string.action_cancel), null)
+            .show()
+    }
+
+    private fun clearAllOccurrences() {
+        // remove markers do mapa
+        occurrenceMarkers.values.forEach { marker ->
+            mapView.overlays.remove(marker)
+        }
+        occurrenceMarkers.clear()
+
+        // limpa lista + persistência
+        occurrences.clear()
+        repository.saveAll(occurrences)
+
+        mapView.invalidate()
+
+        Toast.makeText(this, getString(R.string.map_cleared), Toast.LENGTH_SHORT).show()
     }
 
     private fun centerOnMyLocation() {

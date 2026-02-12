@@ -59,4 +59,15 @@
     <string name="map_occurrence_remove_message">Tem a certeza que pretende remover esta ocorrência?</string>
     <string name="map_occurrence_remove_confirm">Remover</string>
     <string name="map_occurrence_removed">Ocorrência removida.</string>
+
+    <!-- Mapa -->
+    <string name="map_my_location">A minha localização</string>
+    <string name="map_clear_occurrences">Limpar</string>
+    <string name="map_clear_title">Limpar ocorrências</string>
+    <string name="map_clear_message">Tens a certeza que queres remover todas as ocorrências guardadas?</string>
+    <string name="map_clear_confirm">Limpar</string>
+    <string name="map_cleared">Ocorrências removidas.</string>
+    <string name="map_no_occurrences_to_clear">Não existem ocorrências para limpar.</string>
+
+    <string name="map_default_occurrence_title">Ocorrência</string>
 </resources>
