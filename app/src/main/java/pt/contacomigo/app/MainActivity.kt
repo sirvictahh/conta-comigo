@@ -44,10 +44,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, InfoActivity::class.java))
         }
 
-        // Base URL mínima para já:
-        // - Emulador Android: 10.0.2.2 aponta para o teu PC
-        // - Telemóvel físico: precisa do IP da tua máquina na rede (vamos tratar a seguir)
-        val baseUrl = "http://10.0.2.2:3000"
+        val baseUrl = "http://127.0.0.1:3000"
 
         ioExecutor.execute {
             val result = ApiHealthClient.checkHealth(baseUrl)
