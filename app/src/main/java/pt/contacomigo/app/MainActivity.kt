@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.util.concurrent.Executors
+import pt.contacomigo.app.api.ApiConfig
 import pt.contacomigo.app.api.ApiHealthClient
 
 class MainActivity : AppCompatActivity() {
@@ -44,7 +45,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, InfoActivity::class.java))
         }
 
-        val baseUrl = "http://127.0.0.1:3000"
+        val baseUrl = ApiConfig.baseUrl()
 
         ioExecutor.execute {
             val result = ApiHealthClient.checkHealth(baseUrl)
