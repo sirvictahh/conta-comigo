@@ -19,9 +19,12 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
+import pt.contacomigo.app.api.ApiConfig
+import pt.contacomigo.app.api.OccurrenceApiClient
 import pt.contacomigo.app.data.Occurrence
 import pt.contacomigo.app.data.OccurrenceRepository
 import java.util.UUID
+import java.util.concurrent.Executors
 
 class MapActivity : AppCompatActivity() {
 
@@ -31,8 +34,7 @@ class MapActivity : AppCompatActivity() {
     private lateinit var repository: OccurrenceRepository
     private lateinit var occurrences: MutableList<Occurrence>
 
-    // Mantém referência dos markers (para limpar tudo rapidamente)
-    private val occurrenceMarkers = mutableMapOf<String, Marker>()
+    private val ioExecutor = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,18 +64,57 @@ class MapActivity : AppCompatActivity() {
             centerOnMyLocation()
         }
 
-        // Botão: limpar todas as ocorrências (para testes / reset)
-        findViewById<Button>(R.id.btnClearOccurrences).setOnClickListener {
-            showClearAllOccurrencesDialog()
-        }
-
         // Toque prolongado no mapa: criar uma ocorrência (marcador)
         enableLongPressToAddOccurrence()
+
+        // Sync com API (se estiver disponível)
+        syncFromApiOnStart()
     }
 
     private fun loadSavedOccurrencesOnMap() {
         occurrences.forEach { occ ->
             addOccurrenceMarker(occ, showToast = false)
+        }
+    }
+
+    private fun clearAllMarkers() {
+        // Remove apenas overlays do tipo Marker (mantém o MapEventsOverlay)
+        val markers = mapView.overlays.filterIsInstance<Marker>().toList()
+        markers.forEach { mapView.overlays.remove(it) }
+        mapView.invalidate()
+    }
+
+    private fun syncFromApiOnStart() {
+        val baseUrl = ApiConfig.baseUrl()
+
+        ioExecutor.execute {
+            val (remoteList, result) = OccurrenceApiClient.getAll(baseUrl)
+
+            runOnUiThread {
+                if (result.success && remoteList != null) {
+                    // Estratégia simples: remoto é "source of truth"
+                    occurrences.clear()
+                    occurrences.addAll(remoteList)
+
+                    repository.saveAll(occurrences)
+
+                    clearAllMarkers()
+                    loadSavedOccurrencesOnMap()
+
+                    Toast.makeText(
+                        this,
+                        "Sincronização concluída (${remoteList.size} ocorrências)",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    // Falhou? Mantemos offline (o que já tinhas)
+                    Toast.makeText(
+                        this,
+                        "Sem sincronização (offline). A usar dados locais.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
     }
 
@@ -101,7 +142,7 @@ class MapActivity : AppCompatActivity() {
             .setPositiveButton(R.string.map_add_occurrence_add) { _, _ ->
                 val title = input.text.toString().trim()
                 val finalTitle =
-                    if (title.isBlank()) getString(R.string.map_default_occurrence_title) else title
+                    if (title.isBlank()) getString(R.string.map_add_occurrence_title) else title
 
                 val occ = Occurrence(
                     id = UUID.randomUUID().toString(),
@@ -111,13 +152,34 @@ class MapActivity : AppCompatActivity() {
                     createdAtEpochMillis = System.currentTimeMillis()
                 )
 
+                // Guardar local primeiro (garante funcionamento offline)
                 occurrences.add(occ)
                 repository.saveAll(occurrences)
-
                 addOccurrenceMarker(occ, showToast = true)
+
+                // Tentar criar na API (best-effort)
+                createOccurrenceInApi(occ)
             }
             .setNegativeButton(R.string.map_add_occurrence_cancel, null)
             .show()
+    }
+
+    private fun createOccurrenceInApi(occ: Occurrence) {
+        val baseUrl = ApiConfig.baseUrl()
+
+        ioExecutor.execute {
+            val result = OccurrenceApiClient.create(baseUrl, occ)
+
+            runOnUiThread {
+                if (!result.success) {
+                    Toast.makeText(
+                        this,
+                        "Aviso: não foi possível sincronizar esta ocorrência com a API.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
     }
 
     private fun addOccurrenceMarker(occ: Occurrence, showToast: Boolean) {
@@ -133,8 +195,6 @@ class MapActivity : AppCompatActivity() {
             }
         }
 
-        occurrenceMarkers[occ.id] = marker
-
         mapView.overlays.add(marker)
         mapView.invalidate()
 
@@ -149,10 +209,13 @@ class MapActivity : AppCompatActivity() {
             .setMessage(getString(R.string.map_occurrence_remove_message))
             .setPositiveButton(getString(R.string.map_occurrence_remove_confirm)) { _, _ ->
                 val occId = marker.relatedObject as? String
+
                 if (occId != null) {
                     occurrences.removeAll { it.id == occId }
                     repository.saveAll(occurrences)
-                    occurrenceMarkers.remove(occId)
+
+                    // Best-effort: apagar na API
+                    deleteOccurrenceInApi(occId)
                 }
 
                 mapView.overlays.remove(marker)
@@ -164,36 +227,22 @@ class MapActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showClearAllOccurrencesDialog() {
-        if (occurrences.isEmpty()) {
-            Toast.makeText(this, getString(R.string.map_no_occurrences_to_clear), Toast.LENGTH_SHORT).show()
-            return
-        }
+    private fun deleteOccurrenceInApi(id: String) {
+        val baseUrl = ApiConfig.baseUrl()
 
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.map_clear_title))
-            .setMessage(getString(R.string.map_clear_message))
-            .setPositiveButton(getString(R.string.map_clear_confirm)) { _, _ ->
-                clearAllOccurrences()
+        ioExecutor.execute {
+            val result = OccurrenceApiClient.delete(baseUrl, id)
+
+            runOnUiThread {
+                if (!result.success) {
+                    Toast.makeText(
+                        this,
+                        "Aviso: não foi possível sincronizar a remoção com a API.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
-            .setNegativeButton(getString(R.string.action_cancel), null)
-            .show()
-    }
-
-    private fun clearAllOccurrences() {
-        // remove markers do mapa
-        occurrenceMarkers.values.forEach { marker ->
-            mapView.overlays.remove(marker)
         }
-        occurrenceMarkers.clear()
-
-        // limpa lista + persistência
-        occurrences.clear()
-        repository.saveAll(occurrences)
-
-        mapView.invalidate()
-
-        Toast.makeText(this, getString(R.string.map_cleared), Toast.LENGTH_SHORT).show()
     }
 
     private fun centerOnMyLocation() {
@@ -273,6 +322,11 @@ class MapActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         mapView.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ioExecutor.shutdown()
     }
 
     companion object {
