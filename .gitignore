@@ -13,7 +13,7 @@
 .idea/
 *.iml
 
-# Configuração local (paths do SDK, etc.)
+# Configuração local do Android SDK
 local.properties
 
 # macOS
@@ -21,3 +21,15 @@ local.properties
 
 # Windows
 Thumbs.db
+
+# Backend / Node.js
+/api/node_modules/
+/api/.env
+/api/data/
+/api/*.db
+/api/*.sqlite
+
+# Logs Node/npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
