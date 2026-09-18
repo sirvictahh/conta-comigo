@@ -58,10 +58,6 @@ class ExpensesActivity : AppCompatActivity() {
     private val ioExecutor =
         Executors.newSingleThreadExecutor()
 
-    /*
-     * Usado quando temos de pedir permissão de localização
-     * antes de continuar o pedido iniciado pelo utilizador.
-     */
     private var pendingLocationCallback:
             ((Double, Double) -> Unit)? =
         null
@@ -69,7 +65,6 @@ class ExpensesActivity : AppCompatActivity() {
     override fun onCreate(
         savedInstanceState: Bundle?
     ) {
-
         super.onCreate(
             savedInstanceState
         )
@@ -120,7 +115,113 @@ class ExpensesActivity : AppCompatActivity() {
         }
 
         loadExpenses()
+
+        /*
+         * Se chegámos aqui através de uma ocorrência,
+         * abre automaticamente o formulário com:
+         *
+         * - título da ocorrência;
+         * - latitude;
+         * - longitude.
+         */
+        handleMapExpenseRequest(
+            savedInstanceState
+        )
     }
+
+    /*
+     * =====================================================
+     * PEDIDO VINDO DO MAPA
+     * =====================================================
+     */
+
+    private fun handleMapExpenseRequest(
+        savedInstanceState: Bundle?
+    ) {
+
+        /*
+         * Evita abrir novamente o formulário
+         * depois de uma recriação da Activity.
+         */
+        if (
+            savedInstanceState != null
+        ) {
+            return
+        }
+
+        val shouldCreate =
+            intent.getBooleanExtra(
+                EXTRA_CREATE_EXPENSE,
+                false
+            )
+
+        if (!shouldCreate) {
+            return
+        }
+
+        if (
+            !intent.hasExtra(
+                EXTRA_LATITUDE
+            ) ||
+            !intent.hasExtra(
+                EXTRA_LONGITUDE
+            )
+        ) {
+            return
+        }
+
+        val latitude =
+            intent.getDoubleExtra(
+                EXTRA_LATITUDE,
+                0.0
+            )
+
+        val longitude =
+            intent.getDoubleExtra(
+                EXTRA_LONGITUDE,
+                0.0
+            )
+
+        val initialTitle =
+            intent.getStringExtra(
+                EXTRA_INITIAL_TITLE
+            )
+
+        /*
+         * Consumimos os extras.
+         */
+        intent.removeExtra(
+            EXTRA_CREATE_EXPENSE
+        )
+
+        intent.removeExtra(
+            EXTRA_LATITUDE
+        )
+
+        intent.removeExtra(
+            EXTRA_LONGITUDE
+        )
+
+        intent.removeExtra(
+            EXTRA_INITIAL_TITLE
+        )
+
+        showExpenseDialog(
+            expense = null,
+            initialLatitude =
+                latitude,
+            initialLongitude =
+                longitude,
+            initialTitle =
+                initialTitle
+        )
+    }
+
+    /*
+     * =====================================================
+     * CARREGAMENTO / LISTAGEM
+     * =====================================================
+     */
 
     private fun loadExpenses() {
 
@@ -150,6 +251,7 @@ class ExpensesActivity : AppCompatActivity() {
                 ExpenseApiClient.getAll(
                     baseUrl =
                         ApiConfig.baseUrl(),
+
                     token =
                         token
                 )
@@ -188,7 +290,9 @@ class ExpensesActivity : AppCompatActivity() {
             .removeAllViews()
 
         tvEmpty.visibility =
-            if (expenses.isEmpty()) {
+            if (
+                expenses.isEmpty()
+            ) {
                 View.VISIBLE
             } else {
                 View.GONE
@@ -211,9 +315,13 @@ class ExpensesActivity : AppCompatActivity() {
     ): View {
 
         val density =
-            resources.displayMetrics.density
+            resources
+                .displayMetrics
+                .density
 
-        fun dp(value: Int): Int =
+        fun dp(
+            value: Int
+        ): Int =
             (value * density)
                 .toInt()
 
@@ -393,17 +501,23 @@ class ExpensesActivity : AppCompatActivity() {
         return container
     }
 
-    /**
-     * Formulário de criação/edição.
-     *
-     * A localização é opcional.
+    /*
+     * =====================================================
+     * FORMULÁRIO
+     * =====================================================
      */
+
     private fun showExpenseDialog(
-        expense: Expense?
+        expense: Expense?,
+        initialLatitude: Double? = null,
+        initialLongitude: Double? = null,
+        initialTitle: String? = null
     ) {
 
         val density =
-            resources.displayMetrics.density
+            resources
+                .displayMetrics
+                .density
 
         val padding =
             (20 * density)
@@ -412,10 +526,12 @@ class ExpensesActivity : AppCompatActivity() {
         var selectedLatitude:
                 Double? =
             expense?.latitude
+                ?: initialLatitude
 
         var selectedLongitude:
                 Double? =
             expense?.longitude
+                ?: initialLongitude
 
         val container =
             LinearLayout(this).apply {
@@ -438,10 +554,13 @@ class ExpensesActivity : AppCompatActivity() {
                     "Descrição"
 
                 inputType =
-                    InputType.TYPE_CLASS_TEXT
+                    InputType
+                        .TYPE_CLASS_TEXT
 
                 setText(
-                    expense?.title ?: ""
+                    expense?.title
+                        ?: initialTitle
+                        ?: ""
                 )
             }
 
@@ -452,11 +571,14 @@ class ExpensesActivity : AppCompatActivity() {
                     "Valor (€)"
 
                 inputType =
-                    InputType.TYPE_CLASS_NUMBER or
+                    InputType
+                        .TYPE_CLASS_NUMBER or
                             InputType
                                 .TYPE_NUMBER_FLAG_DECIMAL
 
-                if (expense != null) {
+                if (
+                    expense != null
+                ) {
 
                     setText(
                         BigDecimal(
@@ -465,7 +587,8 @@ class ExpensesActivity : AppCompatActivity() {
                             .movePointLeft(2)
                             .setScale(
                                 2,
-                                RoundingMode.UNNECESSARY
+                                RoundingMode
+                                    .UNNECESSARY
                             )
                             .toPlainString()
                     )
@@ -479,10 +602,12 @@ class ExpensesActivity : AppCompatActivity() {
                     "Categoria (ex.: Alimentação)"
 
                 inputType =
-                    InputType.TYPE_CLASS_TEXT
+                    InputType
+                        .TYPE_CLASS_TEXT
 
                 setText(
-                    expense?.category ?: ""
+                    expense?.category
+                        ?: ""
                 )
             }
 
@@ -530,7 +655,8 @@ class ExpensesActivity : AppCompatActivity() {
                                 selectedLongitude
                             )
 
-                buttonRemoveLocation.visibility =
+                buttonRemoveLocation
+                    .visibility =
                     View.VISIBLE
 
             } else {
@@ -538,7 +664,8 @@ class ExpensesActivity : AppCompatActivity() {
                 locationStatus.text =
                     "Sem localização associada."
 
-                buttonRemoveLocation.visibility =
+                buttonRemoveLocation
+                    .visibility =
                     View.GONE
             }
         }
@@ -549,7 +676,9 @@ class ExpensesActivity : AppCompatActivity() {
                 locationStatus.text =
                     "A obter localização..."
 
-                requestCurrentLocation { latitude, longitude ->
+                requestCurrentLocation {
+                        latitude,
+                        longitude ->
 
                     selectedLatitude =
                         latitude
@@ -608,7 +737,9 @@ class ExpensesActivity : AppCompatActivity() {
         val dialog =
             AlertDialog.Builder(this)
                 .setTitle(
-                    if (expense == null) {
+                    if (
+                        expense == null
+                    ) {
                         "Nova despesa"
                     } else {
                         "Editar despesa"
@@ -618,7 +749,9 @@ class ExpensesActivity : AppCompatActivity() {
                     container
                 )
                 .setPositiveButton(
-                    if (expense == null) {
+                    if (
+                        expense == null
+                    ) {
                         "Adicionar"
                     } else {
                         "Guardar"
@@ -634,7 +767,8 @@ class ExpensesActivity : AppCompatActivity() {
         dialog.setOnShowListener {
 
             dialog.getButton(
-                AlertDialog.BUTTON_POSITIVE
+                AlertDialog
+                    .BUTTON_POSITIVE
             ).setOnClickListener {
 
                 val title =
@@ -694,7 +828,9 @@ class ExpensesActivity : AppCompatActivity() {
 
                 dialog.dismiss()
 
-                if (expense == null) {
+                if (
+                    expense == null
+                ) {
 
                     createExpense(
                         title =
@@ -741,30 +877,36 @@ class ExpensesActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    /**
-     * Pede a localização atual.
-     *
-     * Se ainda não houver permissão, pede-a e retoma
-     * automaticamente depois da resposta do utilizador.
+    /*
+     * =====================================================
+     * GPS
+     * =====================================================
      */
+
     private fun requestCurrentLocation(
         callback:
             (Double, Double) -> Unit
     ) {
 
         val fineGranted =
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) ==
-                    PackageManager.PERMISSION_GRANTED
+            ContextCompat
+                .checkSelfPermission(
+                    this,
+                    Manifest.permission
+                        .ACCESS_FINE_LOCATION
+                ) ==
+                    PackageManager
+                        .PERMISSION_GRANTED
 
         val coarseGranted =
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) ==
-                    PackageManager.PERMISSION_GRANTED
+            ContextCompat
+                .checkSelfPermission(
+                    this,
+                    Manifest.permission
+                        .ACCESS_COARSE_LOCATION
+                ) ==
+                    PackageManager
+                        .PERMISSION_GRANTED
 
         if (
             !fineGranted &&
@@ -774,14 +916,18 @@ class ExpensesActivity : AppCompatActivity() {
             pendingLocationCallback =
                 callback
 
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ),
-                REQ_EXPENSE_LOCATION
-            )
+            ActivityCompat
+                .requestPermissions(
+                    this,
+                    arrayOf(
+                        Manifest.permission
+                            .ACCESS_FINE_LOCATION,
+
+                        Manifest.permission
+                            .ACCESS_COARSE_LOCATION
+                    ),
+                    REQ_EXPENSE_LOCATION
+                )
 
             return
         }
@@ -797,16 +943,22 @@ class ExpensesActivity : AppCompatActivity() {
     ) {
 
         val permissionGranted =
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) ==
-                    PackageManager.PERMISSION_GRANTED ||
-                    ContextCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    ) ==
-                    PackageManager.PERMISSION_GRANTED
+            ContextCompat
+                .checkSelfPermission(
+                    this,
+                    Manifest.permission
+                        .ACCESS_FINE_LOCATION
+                ) ==
+                    PackageManager
+                        .PERMISSION_GRANTED ||
+                    ContextCompat
+                        .checkSelfPermission(
+                            this,
+                            Manifest.permission
+                                .ACCESS_COARSE_LOCATION
+                        ) ==
+                    PackageManager
+                        .PERMISSION_GRANTED
 
         if (!permissionGranted) {
             return
@@ -821,12 +973,15 @@ class ExpensesActivity : AppCompatActivity() {
                 .getCurrentLocation(
                     Priority
                         .PRIORITY_HIGH_ACCURACY,
+
                     cancellationTokenSource
                         .token
                 )
                 .addOnSuccessListener { location ->
 
-                    if (location == null) {
+                    if (
+                        location == null
+                    ) {
 
                         Toast.makeText(
                             this,
@@ -851,7 +1006,9 @@ class ExpensesActivity : AppCompatActivity() {
                     ).show()
                 }
 
-        } catch (_: SecurityException) {
+        } catch (
+            _: SecurityException
+        ) {
 
             Toast.makeText(
                 this,
@@ -884,7 +1041,8 @@ class ExpensesActivity : AppCompatActivity() {
             grantResults.isNotEmpty() &&
                     grantResults.any {
                         it ==
-                                PackageManager.PERMISSION_GRANTED
+                                PackageManager
+                                    .PERMISSION_GRANTED
                     }
 
         val callback =
@@ -911,6 +1069,12 @@ class ExpensesActivity : AppCompatActivity() {
             ).show()
         }
     }
+
+    /*
+     * =====================================================
+     * CRUD
+     * =====================================================
+     */
 
     private fun createExpense(
         title: String,
@@ -1050,7 +1214,9 @@ class ExpensesActivity : AppCompatActivity() {
                                     updatedExpense.id
                         }
 
-                    if (index >= 0) {
+                    if (
+                        index >= 0
+                    ) {
 
                         expenses[index] =
                             updatedExpense
@@ -1157,6 +1323,12 @@ class ExpensesActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * =====================================================
+     * UTILITÁRIOS
+     * =====================================================
+     */
+
     private fun updateTotal() {
 
         val totalCents =
@@ -1173,9 +1345,7 @@ class ExpensesActivity : AppCompatActivity() {
     ): String {
 
         val value =
-            BigDecimal(
-                cents
-            )
+            BigDecimal(cents)
                 .movePointLeft(2)
 
         val formatter =
@@ -1224,8 +1394,9 @@ class ExpensesActivity : AppCompatActivity() {
                 )
                 .longValueExact()
 
-        } catch (_: Exception) {
-
+        } catch (
+            _: Exception
+        ) {
             null
         }
     }
@@ -1235,7 +1406,9 @@ class ExpensesActivity : AppCompatActivity() {
     ) {
 
         progress.visibility =
-            if (loading) {
+            if (
+                loading
+            ) {
                 View.VISIBLE
             } else {
                 View.GONE
@@ -1251,7 +1424,9 @@ class ExpensesActivity : AppCompatActivity() {
     ) {
 
         val message =
-            when (httpCode) {
+            when (
+                httpCode
+            ) {
 
                 401 ->
                     "Sessão expirada ou inválida."
@@ -1275,7 +1450,6 @@ class ExpensesActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-
         super.onDestroy()
 
         pendingLocationCallback =
@@ -1289,5 +1463,17 @@ class ExpensesActivity : AppCompatActivity() {
         private const val
                 REQ_EXPENSE_LOCATION =
             2001
+
+        const val EXTRA_CREATE_EXPENSE =
+            "create_expense"
+
+        const val EXTRA_LATITUDE =
+            "expense_latitude"
+
+        const val EXTRA_LONGITUDE =
+            "expense_longitude"
+
+        const val EXTRA_INITIAL_TITLE =
+            "expense_initial_title"
     }
 }
