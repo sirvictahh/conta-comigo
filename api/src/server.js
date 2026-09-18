@@ -56,15 +56,42 @@ function isValidLatLng(lat, lng) {
   );
 }
 
+/*
+ * Uma despesa pode:
+ *
+ * - não ter localização:
+ *   latitude = null
+ *   longitude = null
+ *
+ * - ter localização completa e válida.
+ *
+ * Nunca aceitamos apenas latitude ou apenas longitude.
+ */
+function isValidOptionalLatLng(lat, lng) {
+
+  if (lat === null && lng === null) {
+    return true;
+  }
+
+  return isValidLatLng(
+    lat,
+    lng
+  );
+}
+
 function sanitizeString(value, maxLen) {
+
   if (typeof value !== "string") {
     return "";
   }
 
-  return value.trim().slice(0, maxLen);
+  return value
+    .trim()
+    .slice(0, maxLen);
 }
 
 function asyncHandler(fn) {
+
   return (req, res, next) =>
     Promise.resolve(
       fn(req, res, next)
@@ -74,14 +101,20 @@ function asyncHandler(fn) {
 let db;
 
 /*
- * HEALTH CHECK
+ * =========================================================
+ * HEALTH
+ * =========================================================
  */
+
 app.get(
   "/health",
   asyncHandler(async (req, res) => {
-    await db.get("SELECT 1 AS ok");
 
-    res.json({
+    await db.get(
+      "SELECT 1 AS ok"
+    );
+
+    return res.json({
       ok: true
     });
   })
@@ -96,19 +129,24 @@ app.get(
 app.post(
   "/auth/register",
   asyncHandler(async (req, res) => {
-    const name = sanitizeString(
-      req.body?.name,
-      80
-    );
 
-    const email = sanitizeString(
-      req.body?.email,
-      120
-    ).toLowerCase();
+    const name =
+      sanitizeString(
+        req.body?.name,
+        80
+      );
 
-    const password = req.body?.password;
+    const email =
+      sanitizeString(
+        req.body?.email,
+        120
+      ).toLowerCase();
+
+    const password =
+      req.body?.password;
 
     if (name.length < 2) {
+
       return res.status(400).json({
         error:
           "Name must have at least 2 characters."
@@ -116,8 +154,10 @@ app.post(
     }
 
     if (!isValidEmail(email)) {
+
       return res.status(400).json({
-        error: "Invalid email."
+        error:
+          "Invalid email."
       });
     }
 
@@ -125,13 +165,15 @@ app.post(
       typeof password !== "string" ||
       password.length < 8
     ) {
+
       return res.status(400).json({
         error:
           "Password must have at least 8 characters."
       });
     }
 
-    const userId = uuidv4();
+    const userId =
+      uuidv4();
 
     const passwordHash =
       await bcrypt.hash(
@@ -140,6 +182,7 @@ app.post(
       );
 
     try {
+
       await db.run(
         `
         INSERT INTO users (
@@ -159,12 +202,14 @@ app.post(
           Date.now()
         ]
       );
+
     } catch (error) {
+
       if (
-        String(error).includes(
-          "UNIQUE"
-        )
+        String(error)
+          .includes("UNIQUE")
       ) {
+
         return res.status(409).json({
           error:
             "Email already exists."
@@ -186,10 +231,12 @@ app.post(
 app.post(
   "/auth/login",
   asyncHandler(async (req, res) => {
-    const email = sanitizeString(
-      req.body?.email,
-      120
-    ).toLowerCase();
+
+    const email =
+      sanitizeString(
+        req.body?.email,
+        120
+      ).toLowerCase();
 
     const password =
       req.body?.password;
@@ -198,24 +245,27 @@ app.post(
       !isValidEmail(email) ||
       typeof password !== "string"
     ) {
+
       return res.status(400).json({
         error:
           "Invalid credentials."
       });
     }
 
-    const user = await db.get(
-      `
-      SELECT
-        id,
-        password_hash
-      FROM users
-      WHERE email = ?
-      `,
-      [email]
-    );
+    const user =
+      await db.get(
+        `
+        SELECT
+          id,
+          password_hash
+        FROM users
+        WHERE email = ?
+        `,
+        [email]
+      );
 
     if (!user) {
+
       return res.status(401).json({
         error:
           "Invalid credentials."
@@ -229,20 +279,22 @@ app.post(
       );
 
     if (!passwordMatches) {
+
       return res.status(401).json({
         error:
           "Invalid credentials."
       });
     }
 
-    const token = jwt.sign(
-      {},
-      JWT_SECRET,
-      {
-        subject: user.id,
-        expiresIn: "7d"
-      }
-    );
+    const token =
+      jwt.sign(
+        {},
+        JWT_SECRET,
+        {
+          subject: user.id,
+          expiresIn: "7d"
+        }
+      );
 
     return res.json({
       token
@@ -254,21 +306,24 @@ app.get(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const user = await db.get(
-      `
-      SELECT
-        id,
-        name,
-        email,
-        created_at
-          AS createdAtEpochMillis
-      FROM users
-      WHERE id = ?
-      `,
-      [req.user.id]
-    );
+
+    const user =
+      await db.get(
+        `
+        SELECT
+          id,
+          name,
+          email,
+          created_at
+            AS createdAtEpochMillis
+        FROM users
+        WHERE id = ?
+        `,
+        [req.user.id]
+      );
 
     if (!user) {
+
       return res.status(404).json({
         error:
           "User not found."
@@ -289,21 +344,23 @@ app.get(
   "/occurrences",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const rows = await db.all(
-      `
-      SELECT
-        id,
-        title,
-        latitude,
-        longitude,
-        created_at
-          AS createdAtEpochMillis
-      FROM occurrences
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      `,
-      [req.user.id]
-    );
+
+    const rows =
+      await db.all(
+        `
+        SELECT
+          id,
+          title,
+          latitude,
+          longitude,
+          created_at
+            AS createdAtEpochMillis
+        FROM occurrences
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        `,
+        [req.user.id]
+      );
 
     return res.json(rows);
   })
@@ -313,15 +370,18 @@ app.post(
   "/occurrences",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const id = sanitizeString(
-      req.body?.id,
-      80
-    );
 
-    const title = sanitizeString(
-      req.body?.title,
-      60
-    );
+    const id =
+      sanitizeString(
+        req.body?.id,
+        80
+      );
+
+    const title =
+      sanitizeString(
+        req.body?.title,
+        60
+      );
 
     const latitude =
       req.body?.latitude;
@@ -330,6 +390,7 @@ app.post(
       req.body?.longitude;
 
     if (title.length < 1) {
+
       return res.status(400).json({
         error:
           "Title must be between 1 and 60 characters."
@@ -342,16 +403,20 @@ app.post(
         longitude
       )
     ) {
+
       return res.status(400).json({
         error:
           "Invalid latitude/longitude."
       });
     }
 
-    let finalId = uuidv4();
+    let finalId =
+      uuidv4();
 
     if (id.length > 0) {
+
       if (!uuidValidate(id)) {
+
         return res.status(400).json({
           error:
             "Invalid id (must be UUID)."
@@ -361,9 +426,11 @@ app.post(
       finalId = id;
     }
 
-    const createdAt = Date.now();
+    const createdAt =
+      Date.now();
 
     try {
+
       await db.run(
         `
         INSERT INTO occurrences (
@@ -385,15 +452,14 @@ app.post(
           createdAt
         ]
       );
+
     } catch (error) {
+
       if (
-        String(error).includes(
-          "UNIQUE"
-        ) ||
-        String(error).includes(
-          "PRIMARY"
-        )
+        String(error).includes("UNIQUE") ||
+        String(error).includes("PRIMARY")
       ) {
+
         return res.status(409).json({
           error:
             "Occurrence id already exists."
@@ -421,6 +487,7 @@ app.put(
   "/occurrences/:id",
   requireAuth,
   asyncHandler(async (req, res) => {
+
     const id =
       req.params.id;
 
@@ -431,6 +498,7 @@ app.put(
       );
 
     if (!uuidValidate(id)) {
+
       return res.status(400).json({
         error:
           "Invalid id (must be UUID)."
@@ -438,26 +506,29 @@ app.put(
     }
 
     if (title.length < 1) {
+
       return res.status(400).json({
         error:
           "Title must be between 1 and 60 characters."
       });
     }
 
-    const exists = await db.get(
-      `
-      SELECT id
-      FROM occurrences
-      WHERE id = ?
-        AND user_id = ?
-      `,
-      [
-        id,
-        req.user.id
-      ]
-    );
+    const exists =
+      await db.get(
+        `
+        SELECT id
+        FROM occurrences
+        WHERE id = ?
+          AND user_id = ?
+        `,
+        [
+          id,
+          req.user.id
+        ]
+      );
 
     if (!exists) {
+
       return res.status(404).json({
         error:
           "Occurrence not found."
@@ -506,10 +577,12 @@ app.delete(
   "/occurrences/:id",
   requireAuth,
   asyncHandler(async (req, res) => {
+
     const id =
       req.params.id;
 
     if (!uuidValidate(id)) {
+
       return res.status(400).json({
         error:
           "Invalid id (must be UUID)."
@@ -531,6 +604,7 @@ app.delete(
       );
 
     if (!exists) {
+
       return res.status(404).json({
         error:
           "Occurrence not found."
@@ -562,40 +636,45 @@ app.delete(
  */
 
 /*
- * Lista todas as despesas do utilizador autenticado.
+ * GET /expenses
  */
 app.get(
   "/expenses",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const rows = await db.all(
-      `
-      SELECT
-        id,
-        title,
-        amount_cents
-          AS amountCents,
-        category,
-        created_at
-          AS createdAtEpochMillis
-      FROM expenses
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      `,
-      [req.user.id]
-    );
+
+    const rows =
+      await db.all(
+        `
+        SELECT
+          id,
+          title,
+          amount_cents
+            AS amountCents,
+          category,
+          latitude,
+          longitude,
+          created_at
+            AS createdAtEpochMillis
+        FROM expenses
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        `,
+        [req.user.id]
+      );
 
     return res.json(rows);
   })
 );
 
 /*
- * Cria uma nova despesa.
+ * POST /expenses
  */
 app.post(
   "/expenses",
   requireAuth,
   asyncHandler(async (req, res) => {
+
     const title =
       sanitizeString(
         req.body?.title,
@@ -611,10 +690,21 @@ app.post(
     const amountCents =
       req.body?.amountCents;
 
+    /*
+     * Null significa:
+     * "esta despesa não tem localização".
+     */
+    const latitude =
+      req.body?.latitude ?? null;
+
+    const longitude =
+      req.body?.longitude ?? null;
+
     if (
       title.length < 1 ||
       title.length > 80
     ) {
+
       return res.status(400).json({
         error:
           "Title must be between 1 and 80 characters."
@@ -627,6 +717,7 @@ app.post(
       ) ||
       amountCents <= 0
     ) {
+
       return res.status(400).json({
         error:
           "Amount must be a positive integer in cents."
@@ -637,13 +728,29 @@ app.post(
       category.length < 1 ||
       category.length > 40
     ) {
+
       return res.status(400).json({
         error:
           "Invalid category."
       });
     }
 
-    const id = uuidv4();
+    if (
+      !isValidOptionalLatLng(
+        latitude,
+        longitude
+      )
+    ) {
+
+      return res.status(400).json({
+        error:
+          "Latitude and longitude must both be valid or both be null."
+      });
+    }
+
+    const id =
+      uuidv4();
+
     const createdAt =
       Date.now();
 
@@ -655,9 +762,11 @@ app.post(
         title,
         amount_cents,
         category,
+        latitude,
+        longitude,
         created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         id,
@@ -665,6 +774,8 @@ app.post(
         title,
         amountCents,
         category,
+        latitude,
+        longitude,
         createdAt
       ]
     );
@@ -674,6 +785,8 @@ app.post(
       title,
       amountCents,
       category,
+      latitude,
+      longitude,
       createdAtEpochMillis:
         createdAt
     });
@@ -681,16 +794,18 @@ app.post(
 );
 
 /*
- * Atualiza uma despesa existente.
+ * PUT /expenses/:id
  */
 app.put(
   "/expenses/:id",
   requireAuth,
   asyncHandler(async (req, res) => {
+
     const id =
       req.params.id;
 
     if (!uuidValidate(id)) {
+
       return res.status(400).json({
         error:
           "Invalid id (must be UUID)."
@@ -712,7 +827,14 @@ app.put(
     const amountCents =
       req.body?.amountCents;
 
+    const latitude =
+      req.body?.latitude ?? null;
+
+    const longitude =
+      req.body?.longitude ?? null;
+
     if (title.length < 1) {
+
       return res.status(400).json({
         error:
           "Invalid title."
@@ -725,6 +847,7 @@ app.put(
       ) ||
       amountCents <= 0
     ) {
+
       return res.status(400).json({
         error:
           "Amount must be a positive integer in cents."
@@ -732,9 +855,23 @@ app.put(
     }
 
     if (category.length < 1) {
+
       return res.status(400).json({
         error:
           "Invalid category."
+      });
+    }
+
+    if (
+      !isValidOptionalLatLng(
+        latitude,
+        longitude
+      )
+    ) {
+
+      return res.status(400).json({
+        error:
+          "Latitude and longitude must both be valid or both be null."
       });
     }
 
@@ -753,6 +890,7 @@ app.put(
       );
 
     if (!exists) {
+
       return res.status(404).json({
         error:
           "Expense not found."
@@ -765,7 +903,9 @@ app.put(
       SET
         title = ?,
         amount_cents = ?,
-        category = ?
+        category = ?,
+        latitude = ?,
+        longitude = ?
       WHERE id = ?
         AND user_id = ?
       `,
@@ -773,6 +913,8 @@ app.put(
         title,
         amountCents,
         category,
+        latitude,
+        longitude,
         id,
         req.user.id
       ]
@@ -787,6 +929,8 @@ app.put(
           amount_cents
             AS amountCents,
           category,
+          latitude,
+          longitude,
           created_at
             AS createdAtEpochMillis
         FROM expenses
@@ -804,16 +948,18 @@ app.put(
 );
 
 /*
- * Remove uma despesa.
+ * DELETE /expenses/:id
  */
 app.delete(
   "/expenses/:id",
   requireAuth,
   asyncHandler(async (req, res) => {
+
     const id =
       req.params.id;
 
     if (!uuidValidate(id)) {
+
       return res.status(400).json({
         error:
           "Invalid id (must be UUID)."
@@ -835,6 +981,7 @@ app.delete(
       );
 
     if (!exists) {
+
       return res.status(404).json({
         error:
           "Expense not found."
@@ -866,8 +1013,10 @@ app.delete(
  */
 
 app.use((req, res) => {
-  res.status(404).json({
-    error: "Not found."
+
+  return res.status(404).json({
+    error:
+      "Not found."
   });
 });
 
@@ -876,9 +1025,10 @@ app.use((req, res) => {
  */
 app.use(
   (err, req, res, next) => {
+
     console.error(err);
 
-    res.status(500).json({
+    return res.status(500).json({
       error:
         "Internal server error."
     });
@@ -889,11 +1039,14 @@ app.use(
  * Bootstrap
  */
 async function start() {
-  db = await openDb();
+
+  db =
+    await openDb();
 
   app.listen(
     PORT,
     () => {
+
       console.log(
         `API listening on http://localhost:${PORT}`
       );

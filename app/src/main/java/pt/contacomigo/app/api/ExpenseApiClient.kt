@@ -33,21 +33,21 @@ object ExpenseApiClient {
                 token
             )
 
-            val code = connection.responseCode
-            val body = readBody(
-                connection,
-                code
-            )
+            val code =
+                connection.responseCode
+
+            val body =
+                readBody(
+                    connection,
+                    code
+                )
 
             if (code in 200..299) {
 
-                val expenses =
+                Pair(
                     parseExpenses(
                         body ?: "[]"
-                    )
-
-                Pair(
-                    expenses,
+                    ),
                     ApiSimpleResult(
                         success = true,
                         httpCode = code,
@@ -91,7 +91,9 @@ object ExpenseApiClient {
         token: String,
         title: String,
         amountCents: Long,
-        category: String
+        category: String,
+        latitude: Double?,
+        longitude: Double?
     ): Pair<Expense?, ApiSimpleResult> {
 
         val url = URL(
@@ -114,9 +116,45 @@ object ExpenseApiClient {
             )
 
             val json = JSONObject().apply {
-                put("title", title)
-                put("amountCents", amountCents)
-                put("category", category)
+
+                put(
+                    "title",
+                    title
+                )
+
+                put(
+                    "amountCents",
+                    amountCents
+                )
+
+                put(
+                    "category",
+                    category
+                )
+
+                if (latitude == null) {
+                    put(
+                        "latitude",
+                        JSONObject.NULL
+                    )
+                } else {
+                    put(
+                        "latitude",
+                        latitude
+                    )
+                }
+
+                if (longitude == null) {
+                    put(
+                        "longitude",
+                        JSONObject.NULL
+                    )
+                } else {
+                    put(
+                        "longitude",
+                        longitude
+                    )
+                }
             }
 
             writeJson(
@@ -124,11 +162,14 @@ object ExpenseApiClient {
                 json
             )
 
-            val code = connection.responseCode
-            val body = readBody(
-                connection,
-                code
-            )
+            val code =
+                connection.responseCode
+
+            val body =
+                readBody(
+                    connection,
+                    code
+                )
 
             if (code in 200..299) {
 
@@ -185,7 +226,9 @@ object ExpenseApiClient {
         id: String,
         title: String,
         amountCents: Long,
-        category: String
+        category: String,
+        latitude: Double?,
+        longitude: Double?
     ): Pair<Expense?, ApiSimpleResult> {
 
         val url = URL(
@@ -208,9 +251,45 @@ object ExpenseApiClient {
             )
 
             val json = JSONObject().apply {
-                put("title", title)
-                put("amountCents", amountCents)
-                put("category", category)
+
+                put(
+                    "title",
+                    title
+                )
+
+                put(
+                    "amountCents",
+                    amountCents
+                )
+
+                put(
+                    "category",
+                    category
+                )
+
+                if (latitude == null) {
+                    put(
+                        "latitude",
+                        JSONObject.NULL
+                    )
+                } else {
+                    put(
+                        "latitude",
+                        latitude
+                    )
+                }
+
+                if (longitude == null) {
+                    put(
+                        "longitude",
+                        JSONObject.NULL
+                    )
+                } else {
+                    put(
+                        "longitude",
+                        longitude
+                    )
+                }
             }
 
             writeJson(
@@ -218,11 +297,14 @@ object ExpenseApiClient {
                 json
             )
 
-            val code = connection.responseCode
-            val body = readBody(
-                connection,
-                code
-            )
+            val code =
+                connection.responseCode
+
+            val body =
+                readBody(
+                    connection,
+                    code
+                )
 
             if (code in 200..299) {
 
@@ -297,11 +379,14 @@ object ExpenseApiClient {
                 token
             )
 
-            val code = connection.responseCode
-            val body = readBody(
-                connection,
-                code
-            )
+            val code =
+                connection.responseCode
+
+            val body =
+                readBody(
+                    connection,
+                    code
+                )
 
             if (code in 200..299) {
 
@@ -417,6 +502,7 @@ object ExpenseApiClient {
             mutableListOf<Expense>()
 
         for (i in 0 until array.length()) {
+
             expenses.add(
                 parseExpense(
                     array.getJSONObject(i)
@@ -431,13 +517,51 @@ object ExpenseApiClient {
         json: JSONObject
     ): Expense {
 
+        val latitude =
+            if (
+                json.isNull("latitude")
+            ) {
+                null
+            } else {
+                json.getDouble(
+                    "latitude"
+                )
+            }
+
+        val longitude =
+            if (
+                json.isNull("longitude")
+            ) {
+                null
+            } else {
+                json.getDouble(
+                    "longitude"
+                )
+            }
+
         return Expense(
-            id = json.getString("id"),
-            title = json.getString("title"),
+            id =
+                json.getString("id"),
+
+            title =
+                json.getString("title"),
+
             amountCents =
-                json.getLong("amountCents"),
+                json.getLong(
+                    "amountCents"
+                ),
+
             category =
-                json.getString("category"),
+                json.getString(
+                    "category"
+                ),
+
+            latitude =
+                latitude,
+
+            longitude =
+                longitude,
+
             createdAtEpochMillis =
                 json.getLong(
                     "createdAtEpochMillis"

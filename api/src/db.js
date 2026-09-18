@@ -17,6 +17,9 @@ async function openDb() {
     driver: sqlite3.Database
   });
 
+  /*
+   * Estrutura base da base de dados.
+   */
   await db.exec(`
     PRAGMA foreign_keys = ON;
 
@@ -46,7 +49,12 @@ async function openDb() {
       title TEXT NOT NULL,
       amount_cents INTEGER NOT NULL,
       category TEXT NOT NULL,
+
+      latitude REAL,
+      longitude REAL,
+
       created_at INTEGER NOT NULL,
+
       FOREIGN KEY(user_id)
         REFERENCES users(id)
         ON DELETE CASCADE
@@ -59,7 +67,46 @@ async function openDb() {
       ON expenses(user_id);
   `);
 
+  /*
+   * Migração para bases de dados que já existiam antes
+   * de adicionarmos localização às despesas.
+   *
+   * CREATE TABLE IF NOT EXISTS não modifica uma tabela
+   * existente, portanto verificamos explicitamente as colunas.
+   */
+  const expenseColumns = await db.all(
+    "PRAGMA table_info(expenses)"
+  );
+
+  const expenseColumnNames = expenseColumns.map(
+    column => column.name
+  );
+
+  if (!expenseColumnNames.includes("latitude")) {
+    await db.exec(`
+      ALTER TABLE expenses
+      ADD COLUMN latitude REAL
+    `);
+
+    console.log(
+      "Database migration: added expenses.latitude"
+    );
+  }
+
+  if (!expenseColumnNames.includes("longitude")) {
+    await db.exec(`
+      ALTER TABLE expenses
+      ADD COLUMN longitude REAL
+    `);
+
+    console.log(
+      "Database migration: added expenses.longitude"
+    );
+  }
+
   return db;
 }
 
-module.exports = { openDb };
+module.exports = {
+  openDb
+};
