@@ -10,13 +10,13 @@ import java.net.URL
 
 object ApiHealthClient {
 
-    /**
-     * Faz GET a {baseUrl}/health e devolve true se receber JSON com {"ok":true}.
-     * Implementação minimalista: HttpURLConnection + parsing simples.
-     */
-    fun checkHealth(baseUrl: String, timeoutMillis: Int = 5000): HealthResult {
+    fun checkHealth(
+        baseUrl: String,
+        timeoutMillis: Int = 5000
+    ): HealthResult {
+
         val url = URL("${baseUrl.trimEnd('/')}/health")
-        val connection = (url.openConnection() as HttpURLConnection)
+        val connection = url.openConnection() as HttpURLConnection
 
         return try {
             connection.requestMethod = "GET"
@@ -24,17 +24,48 @@ object ApiHealthClient {
             connection.readTimeout = timeoutMillis
 
             val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val body = stream.bufferedReader().use(BufferedReader::readText).trim()
 
-            val ok = body.contains("\"ok\"") && body.contains("true")
+            val stream =
+                if (code in 200..299) {
+                    connection.inputStream
+                } else {
+                    connection.errorStream
+                }
+
+            val body = stream
+                ?.bufferedReader()
+                ?.use(BufferedReader::readText)
+                ?.trim()
+
+            val ok =
+                body?.contains("\"ok\"") == true &&
+                        body.contains("true")
+
             if (ok) {
-                HealthResult(success = true, httpCode = code, rawBody = body, errorMessage = null)
+                HealthResult(
+                    success = true,
+                    httpCode = code,
+                    rawBody = body,
+                    errorMessage = null
+                )
             } else {
-                HealthResult(success = false, httpCode = code, rawBody = body, errorMessage = "Resposta inesperada no /health")
+                HealthResult(
+                    success = false,
+                    httpCode = code,
+                    rawBody = body,
+                    errorMessage = "Resposta inesperada no /health"
+                )
             }
+
         } catch (e: Exception) {
-            HealthResult(success = false, httpCode = null, rawBody = null, errorMessage = e.message ?: "Erro desconhecido")
+
+            HealthResult(
+                success = false,
+                httpCode = null,
+                rawBody = null,
+                errorMessage = e.message ?: "Erro desconhecido"
+            )
+
         } finally {
             connection.disconnect()
         }
@@ -57,118 +88,317 @@ data class ApiSimpleResult(
 
 object OccurrenceApiClient {
 
-    fun getAll(baseUrl: String): Pair<List<Occurrence>?, ApiSimpleResult> {
-        val url = URL("$baseUrl/occurrences")
-        val conn = (url.openConnection() as HttpURLConnection)
+    /**
+     * GET /occurrences
+     */
+    fun getAll(
+        baseUrl: String,
+        token: String
+    ): Pair<List<Occurrence>?, ApiSimpleResult> {
+
+        val url = URL(
+            "${baseUrl.trimEnd('/')}/occurrences"
+        )
+
+        val connection =
+            url.openConnection() as HttpURLConnection
 
         return try {
-            conn.requestMethod = "GET"
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
 
-            val code = conn.responseCode
-            val body = readBody(conn, code)
+            connection.requestMethod = "GET"
+            connection.connectTimeout = TIMEOUT_MILLIS
+            connection.readTimeout = TIMEOUT_MILLIS
+
+            applyAuthentication(
+                connection = connection,
+                token = token
+            )
+
+            val code = connection.responseCode
+            val body = readBody(connection, code)
 
             if (code in 200..299) {
-                val list = parseOccurrences(body ?: "[]")
-                Pair(list, ApiSimpleResult(success = true, httpCode = code, rawBody = body))
+
+                val list = parseOccurrences(
+                    body ?: "[]"
+                )
+
+                Pair(
+                    list,
+                    ApiSimpleResult(
+                        success = true,
+                        httpCode = code,
+                        rawBody = body
+                    )
+                )
+
             } else {
-                Pair(null, ApiSimpleResult(false, code, "HTTP error", body))
+
+                Pair(
+                    null,
+                    ApiSimpleResult(
+                        success = false,
+                        httpCode = code,
+                        errorMessage = extractErrorMessage(body),
+                        rawBody = body
+                    )
+                )
             }
+
         } catch (e: Exception) {
-            Pair(null, ApiSimpleResult(false, null, e.message, null))
+
+            Pair(
+                null,
+                ApiSimpleResult(
+                    success = false,
+                    httpCode = null,
+                    errorMessage =
+                        e.message ?: "Erro de comunicação com a API."
+                )
+            )
+
         } finally {
-            conn.disconnect()
+            connection.disconnect()
         }
     }
 
-    fun create(baseUrl: String, occurrence: Occurrence): ApiSimpleResult {
-        val url = URL("$baseUrl/occurrences")
-        val conn = (url.openConnection() as HttpURLConnection)
+    /**
+     * POST /occurrences
+     */
+    fun create(
+        baseUrl: String,
+        token: String,
+        occurrence: Occurrence
+    ): ApiSimpleResult {
+
+        val url = URL(
+            "${baseUrl.trimEnd('/')}/occurrences"
+        )
+
+        val connection =
+            url.openConnection() as HttpURLConnection
 
         return try {
-            conn.requestMethod = "POST"
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.doOutput = true
-            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+
+            connection.requestMethod = "POST"
+            connection.connectTimeout = TIMEOUT_MILLIS
+            connection.readTimeout = TIMEOUT_MILLIS
+            connection.doOutput = true
+
+            connection.setRequestProperty(
+                "Content-Type",
+                "application/json; charset=utf-8"
+            )
+
+            connection.setRequestProperty(
+                "Accept",
+                "application/json"
+            )
+
+            applyAuthentication(
+                connection = connection,
+                token = token
+            )
 
             val json = JSONObject().apply {
                 put("id", occurrence.id)
                 put("title", occurrence.title)
                 put("latitude", occurrence.latitude)
                 put("longitude", occurrence.longitude)
-                put("createdAtEpochMillis", occurrence.createdAtEpochMillis)
+                put(
+                    "createdAtEpochMillis",
+                    occurrence.createdAtEpochMillis
+                )
             }
 
-            conn.outputStream.use { os ->
-                val bytes = json.toString().toByteArray(Charsets.UTF_8)
-                os.write(bytes)
+            connection.outputStream.use { output ->
+                output.write(
+                    json.toString()
+                        .toByteArray(Charsets.UTF_8)
+                )
             }
 
-            val code = conn.responseCode
-            val body = readBody(conn, code)
+            val code = connection.responseCode
+            val body = readBody(connection, code)
 
             if (code in 200..299) {
-                ApiSimpleResult(true, code, null, body)
+
+                ApiSimpleResult(
+                    success = true,
+                    httpCode = code,
+                    rawBody = body
+                )
+
             } else {
-                ApiSimpleResult(false, code, "HTTP error", body)
+
+                ApiSimpleResult(
+                    success = false,
+                    httpCode = code,
+                    errorMessage = extractErrorMessage(body),
+                    rawBody = body
+                )
             }
+
         } catch (e: Exception) {
-            ApiSimpleResult(false, null, e.message, null)
+
+            ApiSimpleResult(
+                success = false,
+                httpCode = null,
+                errorMessage =
+                    e.message ?: "Erro de comunicação com a API."
+            )
+
         } finally {
-            conn.disconnect()
+            connection.disconnect()
         }
     }
 
-    fun delete(baseUrl: String, id: String): ApiSimpleResult {
-        val url = URL("$baseUrl/occurrences/$id")
-        val conn = (url.openConnection() as HttpURLConnection)
+    /**
+     * DELETE /occurrences/:id
+     */
+    fun delete(
+        baseUrl: String,
+        token: String,
+        id: String
+    ): ApiSimpleResult {
+
+        val url = URL(
+            "${baseUrl.trimEnd('/')}/occurrences/$id"
+        )
+
+        val connection =
+            url.openConnection() as HttpURLConnection
 
         return try {
-            conn.requestMethod = "DELETE"
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
 
-            val code = conn.responseCode
-            val body = readBody(conn, code)
+            connection.requestMethod = "DELETE"
+            connection.connectTimeout = TIMEOUT_MILLIS
+            connection.readTimeout = TIMEOUT_MILLIS
+
+            applyAuthentication(
+                connection = connection,
+                token = token
+            )
+
+            val code = connection.responseCode
+            val body = readBody(connection, code)
 
             if (code in 200..299) {
-                ApiSimpleResult(true, code, null, body)
+
+                ApiSimpleResult(
+                    success = true,
+                    httpCode = code,
+                    rawBody = body
+                )
+
             } else {
-                ApiSimpleResult(false, code, "HTTP error", body)
+
+                ApiSimpleResult(
+                    success = false,
+                    httpCode = code,
+                    errorMessage = extractErrorMessage(body),
+                    rawBody = body
+                )
             }
+
         } catch (e: Exception) {
-            ApiSimpleResult(false, null, e.message, null)
+
+            ApiSimpleResult(
+                success = false,
+                httpCode = null,
+                errorMessage =
+                    e.message ?: "Erro de comunicação com a API."
+            )
+
         } finally {
-            conn.disconnect()
+            connection.disconnect()
         }
     }
 
-    private fun readBody(conn: HttpURLConnection, code: Int): String? {
-        val stream = if (code in 200..399) conn.inputStream else conn.errorStream
-        if (stream == null) return null
+    /**
+     * Acrescenta o JWT a todas as rotas protegidas.
+     */
+    private fun applyAuthentication(
+        connection: HttpURLConnection,
+        token: String
+    ) {
 
-        return BufferedReader(InputStreamReader(stream)).use { it.readText() }
+        connection.setRequestProperty(
+            "Authorization",
+            "Bearer ${token.trim()}"
+        )
     }
 
-    private fun parseOccurrences(rawJson: String): List<Occurrence> {
-        val arr = JSONArray(rawJson)
+    private fun readBody(
+        connection: HttpURLConnection,
+        code: Int
+    ): String? {
+
+        val stream =
+            if (code in 200..399) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
+
+        if (stream == null) {
+            return null
+        }
+
+        return BufferedReader(
+            InputStreamReader(stream)
+        ).use {
+            it.readText()
+        }
+    }
+
+    private fun extractErrorMessage(
+        rawBody: String?
+    ): String {
+
+        if (rawBody.isNullOrBlank()) {
+            return "Erro devolvido pela API."
+        }
+
+        return try {
+
+            val json = JSONObject(rawBody)
+
+            json.optString("error")
+                .trim()
+                .takeIf { it.isNotEmpty() }
+                ?: "Erro devolvido pela API."
+
+        } catch (_: Exception) {
+            "Resposta inválida devolvida pela API."
+        }
+    }
+
+    private fun parseOccurrences(
+        rawJson: String
+    ): List<Occurrence> {
+
+        val array = JSONArray(rawJson)
         val list = mutableListOf<Occurrence>()
 
-        for (i in 0 until arr.length()) {
-            val o = arr.getJSONObject(i)
+        for (i in 0 until array.length()) {
+
+            val item = array.getJSONObject(i)
+
             list.add(
                 Occurrence(
-                    id = o.getString("id"),
-                    title = o.getString("title"),
-                    latitude = o.getDouble("latitude"),
-                    longitude = o.getDouble("longitude"),
-                    createdAtEpochMillis = o.getLong("createdAtEpochMillis")
+                    id = item.getString("id"),
+                    title = item.getString("title"),
+                    latitude = item.getDouble("latitude"),
+                    longitude = item.getDouble("longitude"),
+                    createdAtEpochMillis =
+                        item.getLong("createdAtEpochMillis")
                 )
             )
         }
 
         return list
     }
+
+    private const val TIMEOUT_MILLIS = 5000
 }

@@ -6,6 +6,7 @@ import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -26,8 +27,8 @@ class MainActivity : AppCompatActivity() {
         sessionManager = SessionManager(this)
 
         /*
-         * Se não existir um token JWT guardado,
-         * o utilizador é enviado para o ecrã de login.
+         * Sem token JWT, o utilizador não pode permanecer
+         * no menu principal.
          */
         if (!sessionManager.isLoggedIn()) {
             openLoginActivity()
@@ -58,6 +59,7 @@ class MainActivity : AppCompatActivity() {
         val btnExpenses = findViewById<Button>(R.id.btnExpenses)
         val btnMap = findViewById<Button>(R.id.btnMap)
         val btnInfo = findViewById<Button>(R.id.btnInfo)
+        val btnLogout = findViewById<Button>(R.id.btnLogout)
 
         btnExpenses.setOnClickListener {
             startActivity(
@@ -86,12 +88,45 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        btnLogout.setOnClickListener {
+            showLogoutConfirmation()
+        }
+
         /*
-         * Mantemos temporariamente o health check da API.
-         * É útil nesta fase de desenvolvimento para confirmar
-         * que Android e backend continuam comunicáveis.
+         * Health check temporário durante o desenvolvimento.
          */
         checkApiHealth()
+    }
+
+    /**
+     * Confirma explicitamente antes de terminar a sessão.
+     */
+    private fun showLogoutConfirmation() {
+
+        AlertDialog.Builder(this)
+            .setTitle("Terminar sessão")
+            .setMessage("Tem a certeza que pretende terminar a sessão?")
+            .setPositiveButton("Terminar") { _, _ ->
+                logout()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    /**
+     * Remove o JWT guardado e regressa ao LoginActivity.
+     */
+    private fun logout() {
+
+        sessionManager.clear()
+
+        Toast.makeText(
+            this,
+            "Sessão terminada.",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        openLoginActivity()
     }
 
     private fun checkApiHealth() {
@@ -135,8 +170,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Abre o login e remove o MainActivity atual
-     * do histórico de navegação.
+     * Abre o login e remove todas as Activities anteriores
+     * do histórico.
      */
     private fun openLoginActivity() {
 

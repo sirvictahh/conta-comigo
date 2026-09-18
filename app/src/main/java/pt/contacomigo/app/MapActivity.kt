@@ -21,6 +21,7 @@ import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 import pt.contacomigo.app.api.ApiConfig
 import pt.contacomigo.app.api.OccurrenceApiClient
+import pt.contacomigo.app.auth.SessionManager
 import pt.contacomigo.app.data.Occurrence
 import pt.contacomigo.app.data.OccurrenceRepository
 import java.util.UUID
@@ -34,83 +35,172 @@ class MapActivity : AppCompatActivity() {
     private lateinit var repository: OccurrenceRepository
     private lateinit var occurrences: MutableList<Occurrence>
 
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private lateinit var sessionManager: SessionManager
+
+    private val ioExecutor =
+        Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        Configuration.getInstance().userAgentValue = packageName
+        Configuration.getInstance().userAgentValue =
+            packageName
+
         setContentView(R.layout.activity_map)
 
+        sessionManager = SessionManager(this)
+
         mapView = findViewById(R.id.mapView)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        repository = OccurrenceRepository(applicationContext)
-        occurrences = repository.loadAll()
+        fusedLocationClient =
+            LocationServices.getFusedLocationProviderClient(this)
 
-        mapView.setTileSource(TileSourceFactory.MAPNIK)
+        repository =
+            OccurrenceRepository(applicationContext)
+
+        occurrences =
+            repository.loadAll()
+
+        mapView.setTileSource(
+            TileSourceFactory.MAPNIK
+        )
+
         mapView.setMultiTouchControls(true)
 
-        // Fallback: Lisboa
-        val startPoint = GeoPoint(38.7223, -9.1393)
+        // Localização inicial de fallback: Lisboa
+        val startPoint =
+            GeoPoint(38.7223, -9.1393)
+
         mapView.controller.setZoom(15.0)
         mapView.controller.setCenter(startPoint)
 
-        // Carregar marcadores guardados localmente
+        /*
+         * Mostramos primeiro o conteúdo local.
+         * Assim a aplicação continua utilizável offline.
+         */
         loadSavedOccurrencesOnMap()
 
-        // Botão: centrar na minha localização
-        findViewById<Button>(R.id.btnMyLocation).setOnClickListener {
+        findViewById<Button>(
+            R.id.btnMyLocation
+        ).setOnClickListener {
             centerOnMyLocation()
         }
 
-        // Toque prolongado no mapa: criar uma ocorrência (marcador)
         enableLongPressToAddOccurrence()
 
-        // Sync com API (se estiver disponível)
+        /*
+         * Depois tentamos sincronizar com o servidor.
+         */
         syncFromApiOnStart()
     }
 
     private fun loadSavedOccurrencesOnMap() {
-        occurrences.forEach { occ ->
-            addOccurrenceMarker(occ, showToast = false)
+
+        occurrences.forEach { occurrence ->
+            addOccurrenceMarker(
+                occurrence,
+                showToast = false
+            )
         }
     }
 
     private fun clearAllMarkers() {
-        // Remove apenas overlays do tipo Marker (mantém o MapEventsOverlay)
-        val markers = mapView.overlays.filterIsInstance<Marker>().toList()
-        markers.forEach { mapView.overlays.remove(it) }
+
+        val markers =
+            mapView.overlays
+                .filterIsInstance<Marker>()
+                .toList()
+
+        markers.forEach {
+            mapView.overlays.remove(it)
+        }
+
         mapView.invalidate()
     }
 
+    /**
+     * Obtém o JWT atualmente guardado.
+     */
+    private fun getAuthToken(): String? {
+
+        val token = sessionManager.getToken()
+
+        if (token == null) {
+
+            Toast.makeText(
+                this,
+                "Sessão inválida. Inicia sessão novamente.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+
+        return token
+    }
+
+    /**
+     * Sincroniza as ocorrências deste utilizador
+     * com a API autenticada.
+     */
     private fun syncFromApiOnStart() {
-        val baseUrl = ApiConfig.baseUrl()
+
+        val token =
+            getAuthToken() ?: return
+
+        val baseUrl =
+            ApiConfig.baseUrl()
 
         ioExecutor.execute {
-            val (remoteList, result) = OccurrenceApiClient.getAll(baseUrl)
+
+            val (remoteList, result) =
+                OccurrenceApiClient.getAll(
+                    baseUrl = baseUrl,
+                    token = token
+                )
 
             runOnUiThread {
-                if (result.success && remoteList != null) {
-                    // Estratégia simples: remoto é "source of truth"
+
+                if (
+                    result.success &&
+                    remoteList != null
+                ) {
+
+                    /*
+                     * Nesta fase, o servidor é a fonte
+                     * principal quando está disponível.
+                     */
                     occurrences.clear()
                     occurrences.addAll(remoteList)
 
-                    repository.saveAll(occurrences)
+                    repository.saveAll(
+                        occurrences
+                    )
 
                     clearAllMarkers()
                     loadSavedOccurrencesOnMap()
 
                     Toast.makeText(
                         this,
-                        "Sincronização concluída (${remoteList.size} ocorrências)",
+                        "Sincronização concluída " +
+                                "(${remoteList.size} ocorrências)",
                         Toast.LENGTH_SHORT
                     ).show()
+
                 } else {
-                    // Falhou? Mantemos offline (o que já tinhas)
+
+                    val message =
+                        when (result.httpCode) {
+
+                            401 ->
+                                "Sessão expirada ou inválida."
+
+                            else ->
+                                "Sem sincronização. " +
+                                        "A usar dados locais."
+                        }
+
                     Toast.makeText(
                         this,
-                        "Sem sincronização (offline). A usar dados locais.",
+                        message,
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -119,62 +209,138 @@ class MapActivity : AppCompatActivity() {
     }
 
     private fun enableLongPressToAddOccurrence() {
-        val receiver = object : MapEventsReceiver {
-            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean = false
 
-            override fun longPressHelper(p: GeoPoint): Boolean {
-                showAddOccurrenceDialog(p)
-                return true
+        val receiver =
+            object : MapEventsReceiver {
+
+                override fun singleTapConfirmedHelper(
+                    p: GeoPoint
+                ): Boolean = false
+
+                override fun longPressHelper(
+                    p: GeoPoint
+                ): Boolean {
+
+                    showAddOccurrenceDialog(p)
+                    return true
+                }
             }
-        }
 
-        mapView.overlays.add(MapEventsOverlay(receiver))
+        mapView.overlays.add(
+            MapEventsOverlay(receiver)
+        )
     }
 
-    private fun showAddOccurrenceDialog(point: GeoPoint) {
+    private fun showAddOccurrenceDialog(
+        point: GeoPoint
+    ) {
+
         val input = EditText(this).apply {
-            hint = getString(R.string.map_add_occurrence_hint)
+            hint =
+                getString(
+                    R.string.map_add_occurrence_hint
+                )
         }
 
         AlertDialog.Builder(this)
-            .setTitle(R.string.map_add_occurrence_title)
+            .setTitle(
+                R.string.map_add_occurrence_title
+            )
             .setView(input)
-            .setPositiveButton(R.string.map_add_occurrence_add) { _, _ ->
-                val title = input.text.toString().trim()
-                val finalTitle =
-                    if (title.isBlank()) getString(R.string.map_add_occurrence_title) else title
+            .setPositiveButton(
+                R.string.map_add_occurrence_add
+            ) { _, _ ->
 
-                val occ = Occurrence(
-                    id = UUID.randomUUID().toString(),
-                    title = finalTitle,
-                    latitude = point.latitude,
-                    longitude = point.longitude,
-                    createdAtEpochMillis = System.currentTimeMillis()
+                val title =
+                    input.text
+                        .toString()
+                        .trim()
+
+                val finalTitle =
+                    if (title.isBlank()) {
+                        getString(
+                            R.string.map_default_occurrence_title
+                        )
+                    } else {
+                        title
+                    }
+
+                val occurrence =
+                    Occurrence(
+                        id =
+                            UUID.randomUUID()
+                                .toString(),
+                        title = finalTitle,
+                        latitude = point.latitude,
+                        longitude = point.longitude,
+                        createdAtEpochMillis =
+                            System.currentTimeMillis()
+                    )
+
+                /*
+                 * Primeiro guardamos localmente.
+                 * Se a API estiver offline, a app continua
+                 * a funcionar.
+                 */
+                occurrences.add(
+                    occurrence
                 )
 
-                // Guardar local primeiro (garante funcionamento offline)
-                occurrences.add(occ)
-                repository.saveAll(occurrences)
-                addOccurrenceMarker(occ, showToast = true)
+                repository.saveAll(
+                    occurrences
+                )
 
-                // Tentar criar na API (best-effort)
-                createOccurrenceInApi(occ)
+                addOccurrenceMarker(
+                    occurrence,
+                    showToast = true
+                )
+
+                createOccurrenceInApi(
+                    occurrence
+                )
             }
-            .setNegativeButton(R.string.map_add_occurrence_cancel, null)
+            .setNegativeButton(
+                R.string.map_add_occurrence_cancel,
+                null
+            )
             .show()
     }
 
-    private fun createOccurrenceInApi(occ: Occurrence) {
-        val baseUrl = ApiConfig.baseUrl()
+    private fun createOccurrenceInApi(
+        occurrence: Occurrence
+    ) {
+
+        val token =
+            getAuthToken() ?: return
+
+        val baseUrl =
+            ApiConfig.baseUrl()
 
         ioExecutor.execute {
-            val result = OccurrenceApiClient.create(baseUrl, occ)
+
+            val result =
+                OccurrenceApiClient.create(
+                    baseUrl = baseUrl,
+                    token = token,
+                    occurrence = occurrence
+                )
 
             runOnUiThread {
+
                 if (!result.success) {
+
+                    val message =
+                        if (result.httpCode == 401) {
+                            "Sessão expirada. " +
+                                    "A ocorrência ficou apenas local."
+                        } else {
+                            "Não foi possível sincronizar " +
+                                    "a ocorrência com a API."
+                        }
+
                     Toast.makeText(
                         this,
-                        "Aviso: não foi possível sincronizar esta ocorrência com a API.",
+                        message,
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -182,62 +348,150 @@ class MapActivity : AppCompatActivity() {
         }
     }
 
-    private fun addOccurrenceMarker(occ: Occurrence, showToast: Boolean) {
-        val marker = Marker(mapView).apply {
-            position = GeoPoint(occ.latitude, occ.longitude)
-            title = occ.title
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            relatedObject = occ.id
+    private fun addOccurrenceMarker(
+        occurrence: Occurrence,
+        showToast: Boolean
+    ) {
 
-            setOnMarkerClickListener { m, _ ->
-                showRemoveOccurrenceDialog(m)
-                true
+        val marker =
+            Marker(mapView).apply {
+
+                position =
+                    GeoPoint(
+                        occurrence.latitude,
+                        occurrence.longitude
+                    )
+
+                title =
+                    occurrence.title
+
+                setAnchor(
+                    Marker.ANCHOR_CENTER,
+                    Marker.ANCHOR_BOTTOM
+                )
+
+                relatedObject =
+                    occurrence.id
+
+                setOnMarkerClickListener { selectedMarker, _ ->
+
+                    showRemoveOccurrenceDialog(
+                        selectedMarker
+                    )
+
+                    true
+                }
             }
-        }
 
         mapView.overlays.add(marker)
         mapView.invalidate()
 
         if (showToast) {
-            Toast.makeText(this, getString(R.string.map_occurrence_added), Toast.LENGTH_SHORT).show()
+
+            Toast.makeText(
+                this,
+                getString(
+                    R.string.map_occurrence_added
+                ),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
-    private fun showRemoveOccurrenceDialog(marker: Marker) {
+    private fun showRemoveOccurrenceDialog(
+        marker: Marker
+    ) {
+
         AlertDialog.Builder(this)
-            .setTitle(getString(R.string.map_occurrence_remove_title))
-            .setMessage(getString(R.string.map_occurrence_remove_message))
-            .setPositiveButton(getString(R.string.map_occurrence_remove_confirm)) { _, _ ->
-                val occId = marker.relatedObject as? String
+            .setTitle(
+                getString(
+                    R.string.map_occurrence_remove_title
+                )
+            )
+            .setMessage(
+                getString(
+                    R.string.map_occurrence_remove_message
+                )
+            )
+            .setPositiveButton(
+                getString(
+                    R.string.map_occurrence_remove_confirm
+                )
+            ) { _, _ ->
 
-                if (occId != null) {
-                    occurrences.removeAll { it.id == occId }
-                    repository.saveAll(occurrences)
+                val occurrenceId =
+                    marker.relatedObject as? String
 
-                    // Best-effort: apagar na API
-                    deleteOccurrenceInApi(occId)
+                if (occurrenceId != null) {
+
+                    occurrences.removeAll {
+                        it.id == occurrenceId
+                    }
+
+                    repository.saveAll(
+                        occurrences
+                    )
+
+                    deleteOccurrenceInApi(
+                        occurrenceId
+                    )
                 }
 
                 mapView.overlays.remove(marker)
                 mapView.invalidate()
 
-                Toast.makeText(this, getString(R.string.map_occurrence_removed), Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    getString(
+                        R.string.map_occurrence_removed
+                    ),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
-            .setNegativeButton(getString(R.string.action_cancel), null)
+            .setNegativeButton(
+                getString(
+                    R.string.action_cancel
+                ),
+                null
+            )
             .show()
     }
 
-    private fun deleteOccurrenceInApi(id: String) {
-        val baseUrl = ApiConfig.baseUrl()
+    private fun deleteOccurrenceInApi(
+        id: String
+    ) {
+
+        val token =
+            getAuthToken() ?: return
+
+        val baseUrl =
+            ApiConfig.baseUrl()
 
         ioExecutor.execute {
-            val result = OccurrenceApiClient.delete(baseUrl, id)
+
+            val result =
+                OccurrenceApiClient.delete(
+                    baseUrl = baseUrl,
+                    token = token,
+                    id = id
+                )
 
             runOnUiThread {
+
                 if (!result.success) {
+
+                    val message =
+                        if (result.httpCode == 401) {
+                            "Sessão expirada. " +
+                                    "A remoção ficou apenas local."
+                        } else {
+                            "Não foi possível sincronizar " +
+                                    "a remoção com a API."
+                        }
+
                     Toast.makeText(
                         this,
-                        "Aviso: não foi possível sincronizar a remoção com a API.",
+                        message,
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -246,17 +500,26 @@ class MapActivity : AppCompatActivity() {
     }
 
     private fun centerOnMyLocation() {
-        val fineGranted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
 
-        val coarseGranted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+        val fineGranted =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) ==
+                    PackageManager.PERMISSION_GRANTED
 
-        if (!fineGranted && !coarseGranted) {
+        val coarseGranted =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) ==
+                    PackageManager.PERMISSION_GRANTED
+
+        if (
+            !fineGranted &&
+            !coarseGranted
+        ) {
+
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(
@@ -265,28 +528,46 @@ class MapActivity : AppCompatActivity() {
                 ),
                 REQ_LOCATION
             )
+
             return
         }
 
-        fusedLocationClient.lastLocation
+        fusedLocationClient
+            .lastLocation
             .addOnSuccessListener { location ->
+
                 if (location == null) {
+
                     Toast.makeText(
                         this,
-                        getString(R.string.map_error_location_unavailable),
+                        getString(
+                            R.string.map_error_location_unavailable
+                        ),
                         Toast.LENGTH_SHORT
                     ).show()
+
                     return@addOnSuccessListener
                 }
 
-                val point = GeoPoint(location.latitude, location.longitude)
-                mapView.controller.setZoom(17.0)
-                mapView.controller.setCenter(point)
+                val point =
+                    GeoPoint(
+                        location.latitude,
+                        location.longitude
+                    )
+
+                mapView.controller
+                    .setZoom(17.0)
+
+                mapView.controller
+                    .setCenter(point)
             }
             .addOnFailureListener {
+
                 Toast.makeText(
                     this,
-                    getString(R.string.map_error_location_unavailable),
+                    getString(
+                        R.string.map_error_location_unavailable
+                    ),
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -297,17 +578,36 @@ class MapActivity : AppCompatActivity() {
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        if (requestCode != REQ_LOCATION) return
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
 
-        val granted = grantResults.isNotEmpty() && grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+        if (
+            requestCode != REQ_LOCATION
+        ) {
+            return
+        }
+
+        val granted =
+            grantResults.isNotEmpty() &&
+                    grantResults.any {
+                        it ==
+                                PackageManager.PERMISSION_GRANTED
+                    }
+
         if (!granted) {
+
             Toast.makeText(
                 this,
-                getString(R.string.map_error_location_permission),
+                getString(
+                    R.string.map_error_location_permission
+                ),
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
